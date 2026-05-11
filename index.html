@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VIP GOLDEN TRIPLE 3D - Shake Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --vip-gold: #ffcc00;
+            --gold-gradient: linear-gradient(135deg, #ffcc00 0%, #ff9900 100%);
+            --danger: #ff3333;
+            --success: #00ff88;
+        }
+        body {
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+            color: #fff; font-family: 'Montserrat', 'Noto Sans KR', sans-serif;
+            margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh;
+            touch-action: manipulation;
+        }
+        .main-container { width: 100%; max-width: 450px; text-align: center; padding: 15px; box-sizing: border-box; }
+        .game-card {
+            background: rgba(30, 30, 30, 0.95); padding: 20px; border-radius: 30px;
+            border: 1px solid rgba(255, 204, 0, 0.3); box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        }
+        .tier-selector { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 15px 0; }
+        .tier-btn {
+            padding: 10px 5px; border-radius: 12px; border: 1px solid #444;
+            background: #222; color: #666; cursor: pointer; font-size: 0.65rem; transition: 0.3s;
+        }
+        .tier-btn.active { border-color: var(--vip-gold); color: var(--vip-gold); background: #282828; }
+        .tier-btn.locked-out { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
+        
+        #dice-canvas-container { width: 100%; height: 200px; margin: 5px 0; display: flex; justify-content: center; }
+        .prize-display { font-size: 2.4rem; font-weight: 800; color: var(--vip-gold); margin: 5px 0; }
+        
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+        .stat-item { background: #1a1a1a; padding: 10px; border-radius: 15px; border-bottom: 2px solid #333; }
+        .label { font-size: 0.6rem; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        .value { font-size: 1rem; font-weight: bold; }
+        
+        .button-group { display: flex; flex-direction: column; gap: 8px; }
+        .spin-btn {
+            background: var(--gold-gradient); color: #000; border: none; padding: 16px;
+            width: 100%; border-radius: 18px; font-size: 1.2rem; font-weight: 800; cursor: pointer;
+        }
+        .exit-btn {
+            background: transparent; color: #666; border: 1px solid #444; padding: 10px;
+            width: 100%; border-radius: 15px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+        }
+        .shake-request-btn {
+            background: #444; color: #fff; border: none; padding: 8px; margin-top: 10px;
+            border-radius: 10px; font-size: 0.7rem; cursor: pointer; display: none;
+        }
+
+        .spin-btn:disabled, .exit-btn:disabled { background: #444 !important; color: #888 !important; cursor: not-allowed; }
+        #status-msg { margin-top: 10px; font-weight: bold; min-height: 20px; font-size: 0.8rem; color: var(--vip-gold); }
+        
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #1e1e1e; border: 2px solid var(--vip-gold); padding: 30px;
+            border-radius: 30px; text-align: center; width: 85%; max-width: 350px;
+        }
+        .modal-header { font-size: 1.8rem; font-weight: 800; margin-bottom: 15px; }
+        .modal-body { font-size: 1rem; margin-bottom: 25px; line-height: 1.6; color: #ccc; }
+        .modal-footer button {
+            background: var(--gold-gradient); color: #000; border: none; padding: 12px 30px; border-radius: 12px; font-weight: 800; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-container">
+    <div class="game-card">
+        <h2 style="margin:0; letter-spacing:2px; font-weight: 800;">VIP GOLDEN TRIPLE</h2>
+        <p id="sub-header" style="font-size:0.65rem; color:#666; margin-top: 5px;">SELECT A TIER | 등급을 선택하세요</p>
+        
+        <div class="tier-selector">
+            <button class="tier-btn" id="t1" onclick="previewTier(1)"><b>STANDARD</b><br>1K / 100K</button>
+            <button class="tier-btn" id="t2" onclick="previewTier(2)"><b>HIGH ROLLER</b><br>5K / 500K</button>
+            <button class="tier-btn" id="t3" onclick="previewTier(3)"><b>ULTRA VIP</b><br>20K / 2.5M</button>
+        </div>
+
+        <div class="prize-display" id="display-prize">--- ₩</div>
+        <div id="dice-canvas-container"></div>
+
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="label">Balance (잔액)</div>
+                <div class="value" id="bal-val" style="color: var(--success);">100,000</div>
+            </div>
+            <div class="stat-item">
+                <div class="label">Total Lost (손실)</div>
+                <div class="value" id="spent-val" style="color: var(--danger);">0</div>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="spin-btn" id="btn-spin" onclick="play()" disabled>SELECT TIER FIRST</button>
+            <button class="exit-btn" id="btn-exit" onclick="exitGame()">EXIT & COLLECT | 종료 및 정산</button>
+            <button class="shake-request-btn" id="shake-btn" onclick="requestShake()">ENABLE SHAKE TO ROLL</button>
+        </div>
+        <div id="status-msg">CHOOSE A TIER TO BEGIN | 등급을 선택하세요</div>
+    </div>
+</div>
+
+<div id="resultModal" class="modal-overlay">
+    <div class="modal-content">
+        <div id="resultHeader" class="modal-header">RESULT</div>
+        <div class="modal-body" id="resultBody"></div>
+        <div class="modal-footer">
+            <button onclick="location.reload()">RESTART (다시 시작)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const tiers = {
+        1: { fee: 1000, prize: 100000, chance: 0.46 },
+        2: { fee: 5000, prize: 500000, chance: 0.25 },
+        3: { fee: 20000, prize: 2500000, chance: 0.10 }
+    };
+
+    let selectedTier = null, isTierLocked = false, initialCapital = 100000;
+    let balance = 100000, totalSpent = 0, totalRolls = 0, isRolling = false, isGameOver = false;
+    let scene, camera, renderer, dice = [];
+
+    // --- THREE.JS ENGINE ---
+    function createDiceSide(number) {
+        const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
+        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 128, 128);
+        ctx.fillStyle = (number === 1) ? '#ff0000' : '#333333';
+        const dots = { 1:[[64,64]], 2:[[32,32],[96,96]], 3:[[32,32],[64,64],[96,96]], 4:[[32,32],[96,32],[32,96],[96,96]], 5:[[32,32],[96,32],[64,64],[32,96],[96,96]], 6:[[32,32],[96,32],[32,64],[96,64],[32,96],[96,96]] };
+        dots[number].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], 13, 0, Math.PI*2); ctx.fill(); });
+        return new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(canvas) });
+    }
+
+    function init3D() {
+        scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(40, 450/200, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setSize(window.innerWidth > 450 ? 450 : window.innerWidth - 40, 200);
+        document.getElementById('dice-canvas-container').appendChild(renderer.domElement);
+        const light = new THREE.PointLight(0xffffff, 1.5); light.position.set(10, 10, 10);
+        scene.add(light); scene.add(new THREE.AmbientLight(0xaaaaaa));
+        const mats = [createDiceSide(1), createDiceSide(6), createDiceSide(2), createDiceSide(5), createDiceSide(3), createDiceSide(4)];
+        const geo = new THREE.BoxGeometry(1, 1, 1);
+        for (let i = 0; i < 3; i++) {
+            const die = new THREE.Mesh(geo, mats); die.position.x = (i-1)*1.6; scene.add(die); dice.push(die);
+        }
+        camera.position.z = 5; animate();
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (isRolling) dice.forEach(d => { d.rotation.x += 0.3; d.rotation.y += 0.2; d.rotation.z += 0.25; });
+        renderer.render(scene, camera);
+    }
+
+    // --- GAME LOGIC ---
+    function previewTier(t) {
+        if (isTierLocked || isGameOver) return;
+        selectedTier = t;
+        document.querySelectorAll('.tier-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('t' + t).classList.add('active');
+        document.getElementById('display-prize').innerText = tiers[t].prize.toLocaleString() + " ₩";
+        document.getElementById('btn-spin').innerText = `ROLL (${tiers[t].fee.toLocaleString()} ₩)`;
+        document.getElementById('btn-spin').disabled = false;
+        document.getElementById('status-msg').innerText = "SHAKE OR CLICK TO ROLL!";
+    }
+
+    function play() {
+        if (!selectedTier || isRolling || isGameOver) return;
+        if (!isTierLocked) {
+            isTierLocked = true;
+            document.querySelectorAll('.tier-btn').forEach(btn => { if (parseInt(btn.id.substring(1)) !== selectedTier) btn.classList.add('locked-out'); });
+            document.getElementById('sub-header').innerText = "TIER LOCKED | 등급 고정됨";
+            document.getElementById('sub-header').style.color = "#ff4d4d";
+        }
+        const tier = tiers[selectedTier];
+        if (balance < tier.fee) return;
+        
+        balance -= tier.fee; totalSpent += tier.fee; totalRolls++; updateUI();
+        isRolling = true; 
+        document.getElementById('btn-spin').disabled = true;
+        document.getElementById('btn-exit').disabled = true;
+        document.getElementById('status-msg').innerText = "ROLLING... (결과 확인 중...)";
+
+        let isWin = (Math.random() * 100) < tier.chance;
+        setTimeout(() => {
+            isRolling = false;
+            let res = isWin ? [1,1,1] : [Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1];
+            if (!isWin && res.every(v => v === 1)) res[2] = 2; 
+            
+            const rots = { 1: {x:0, y:Math.PI/2, z:0}, 6: {x:0, y:-Math.PI/2, z:0}, 2: {x:-Math.PI/2, y:0, z:0}, 5: {x:Math.PI/2, y:0, z:0}, 3: {x:0, y:0, z:0}, 4: {x:0, y:Math.PI, z:0} };
+            dice.forEach((d, i) => { const r = rots[res[i]]; d.rotation.set(r.x, r.y, r.z); });
+            
+            if (isWin) {
+                balance += tier.prize; isGameOver = true;
+                setTimeout(() => showFinalResult("🎉 JACKPOT! 🎉", "WINNER! (승리)"), 800);
+            } else if (balance < tier.fee) {
+                isGameOver = true; setTimeout(() => showFinalResult("💀 GAME OVER 💀", "BANKRUPT! (파산)"), 800);
+            } else { 
+                document.getElementById('btn-spin').disabled = false; 
+                document.getElementById('btn-exit').disabled = false;
+                document.getElementById('status-msg').innerText = "SHAKE AGAIN!";
+            }
+            updateUI();
+        }, 1600);
+    }
+
+    // --- SHAKE DETECTION ---
+    let lastShakeTime = 0;
+    function requestShake() {
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            DeviceMotionEvent.requestPermission().then(state => {
+                if (state === 'granted') {
+                    window.addEventListener('devicemotion', handleMotion);
+                    document.getElementById('shake-btn').style.display = 'none';
+                }
+            });
+        } else {
+            window.addEventListener('devicemotion', handleMotion);
+            document.getElementById('shake-btn').style.display = 'none';
+        }
+    }
+
+    function handleMotion(event) {
+        if (isRolling || isGameOver || !selectedTier) return;
+        const acc = event.accelerationIncludingGravity;
+        const totalAcc = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
+        if (totalAcc > 25) { // Sensitivity threshold
+            const now = Date.now();
+            if (now - lastShakeTime > 2000) {
+                lastShakeTime = now;
+                play();
+            }
+        }
+    }
+
+    function exitGame() { if (!isRolling && !isGameOver) { isGameOver = true; showFinalResult("💰 SETTLEMENT 💰", "GAME FINISHED"); } }
+
+    function showFinalResult(h, s) {
+        const net = balance - initialCapital;
+        const color = net >= 0 ? 'var(--success)' : 'var(--danger)';
+        document.getElementById('resultHeader').innerText = h;
+        document.getElementById('resultBody').innerHTML = `<p style="font-weight:bold; font-size:1.4rem;">${s}</p><hr style="border:1px solid #333; margin:15px 0;"><p>Total Rolls: <b>${totalRolls}</b></p><p>Total Spent: <b>${totalSpent.toLocaleString()} ₩</b></p><p>Final Balance: <b>${balance.toLocaleString()} ₩</b></p><p style="color:${color}; font-size:1.3rem; margin-top:10px; border: 1px solid ${color}; padding: 10px; border-radius: 10px;">NET: <b>${net.toLocaleString()} ₩</b></p>`;
+        document.getElementById('resultModal').style.display = 'flex';
+    }
+
+    function updateUI() { document.getElementById('bal-val').innerText = balance.toLocaleString(); document.getElementById('spent-val').innerText = totalSpent.toLocaleString(); }
+    
+    window.onload = () => {
+        init3D();
+        // Show shake button for mobile users
+        if (window.DeviceMotionEvent) document.getElementById('shake-btn').style.display = 'block';
+    };
+</script>
+</body>
+</html>
